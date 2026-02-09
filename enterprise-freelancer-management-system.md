@@ -116,3 +116,60 @@
     - Scheduled releases with stakeholder communication.
     - Post-release verification for access and payment workflows.
  
+## Scalable enterprise architecture
+### Architecture diagram (textual)
+```
+ [Enterprise Users]                     [External Systems]
+  (Managers, Legal,                      IdP, ERP, HRIS,
+   Finance, Compliance,                  E-sign, Payment,
+   Freelancers)                          SIEM, Ticketing
+           |                                      |
+           v                                      v
+     [SSO/MFA via IdP] <----------------> [Integration Adapter]
+           |                                      |
+           v                                      v
+       [API Gateway] <-----> [Event Bus / Message Broker]
+           |
+  +--------+---------+---------+---------+---------+--------+
+  |                  |         |         |         |        |
+  v                  v         v         v         v        v
+[Freelancer      [Contract  [Work     [Payments [Compliance [Access
+ Profile Service] Service]  Mgmt]    & Billing] & Risk]     Control]
+  |                  |         |         |         |        |
+  +--------+---------+---------+---------+---------+--------+
+           |                       |
+           v                       v
+   [Workflow Engine]       [Scheduler / Job Service]
+           |                       |
+           v                       v
+     [Audit Trail Service] <---- [Contract Expiration Jobs]
+           |
+           v
+     [Relational Database] + [Evidence Vault / Object Store]
+```
+
+### Module responsibilities
+- **API Gateway**: request routing, rate limits, authn/authz enforcement.
+- **Freelancer Profile Service**: identities, profiles, onboarding state.
+- **Contract Service**: contract creation, approvals, e-sign status, terms.
+- **Work Management Service**: assignments, milestones, timesheets.
+- **Payments & Billing Service**: rate enforcement, invoicing, disbursements.
+- **Compliance & Risk Service**: due diligence, policy attestations, reviews.
+- **Access Control Service**: provisioning/deprovisioning based on contracts.
+- **Workflow Engine**: orchestrates approvals and cross-service state changes.
+- **Scheduler/Job Service**: contract expiration checks and periodic reviews.
+- **Audit Trail Service**: immutable logs of actions and policy decisions.
+- **Reporting/Analytics Service**: compliance, spend, and risk reporting.
+- **Integration Adapter**: connectors to ERP, HRIS, e-sign, payment rails.
+- **Relational Database**: system of record for contracts, users, payments.
+- **Evidence Vault**: signed contracts, audit evidence, supporting documents.
+
+### Integration points
+- **Identity Provider (SSO/MFA)**: authentication, group sync, de-provisioning.
+- **E-signature platform**: contract execution and signature evidence.
+- **ERP/Accounting**: PO numbers, invoice posting, reconciliation.
+- **Payment processor / bank**: disbursements, tax handling, remittance.
+- **HRIS/Vendor management**: onboarding data, worker classification.
+- **Ticketing/ITSM**: change requests, access exceptions, audit tickets.
+- **SIEM/SOC tooling**: security events, anomalous access alerts.
+
