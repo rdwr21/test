@@ -13,7 +13,15 @@ enum UserStatus {
   OFFBOARDED
 }
 
+enum FreelancerStatus {
+  ACTIVE
+  ONBOARDING
+  SUSPENDED
+  OFFBOARDED
+}
+
 enum AttendanceStatus {
+  DRAFT
   SUBMITTED
   APPROVED
   REJECTED
@@ -21,102 +29,207 @@ enum AttendanceStatus {
 
 enum ContractStatus {
   DRAFT
+  IN_REVIEW
   ACTIVE
-  EXPIRED
   SUSPENDED
   TERMINATED
+  EXPIRED
+}
+
+enum ContractVersionStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SIGNED
+  SUPERSEDED
+  VOID
 }
 
 model User {
-  id           String     @id @default(uuid())
+  id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
-  passwordHash String
+  passwordHash String     @map("password_hash")
   status       UserStatus
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
+  deletedById  String?    @db.Uuid @map("deleted_by")
 
-  roles       UserRole[]
-  freelancer  Freelancer?
-  approvals   Attendance[] @relation("attendance_approver")
+  deletedBy    User?      @relation("user_deleted_by", fields: [deletedById], references: [id])
+  deletedUsers User[]     @relation("user_deleted_by")
+  roles        UserRole[] @relation("user_role_user")
+  deletedRoles UserRole[] @relation("user_role_deleted_by")
+  freelancer   Freelancer?
+
+  @@map("users")
 }
 
 model Role {
-  id          String         @id @default(uuid())
-  name        String         @unique
-  permissions RolePermission[]
-  users       UserRole[]
+  id          String     @id @default(uuid()) @db.Uuid
+  name        String     @unique
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+  deletedById String?    @db.Uuid @map("deleted_by")
+
+  permissions RolePermission[] @relation("role_permissions")
+  users       UserRole[]       @relation("role_user_roles")
+  deletedBy   User?            @relation("role_deleted_by", fields: [deletedById], references: [id])
+
+  @@map("roles")
 }
 
 model Permission {
-  id    String @id @default(uuid())
-  code  String @unique
-  roles RolePermission[]
+  id          String     @id @default(uuid()) @db.Uuid
+  code        String     @unique
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+  deletedById String?    @db.Uuid @map("deleted_by")
+
+  roles     RolePermission[] @relation("permission_role_permissions")
+  deletedBy User?            @relation("permission_deleted_by", fields: [deletedById], references: [id])
+
+  @@map("permissions")
 }
 
 model UserRole {
-  userId String
-  roleId String
-  user   User @relation(fields: [userId], references: [id])
-  role   Role @relation(fields: [roleId], references: [id])
+  userId      String    @db.Uuid @map("user_id")
+  roleId      String    @db.Uuid @map("role_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
+  deletedById String?   @db.Uuid @map("deleted_by")
+
+  user      User  @relation("user_role_user", fields: [userId], references: [id])
+  role      Role  @relation("role_user_roles", fields: [roleId], references: [id])
+  deletedBy User? @relation("user_role_deleted_by", fields: [deletedById], references: [id])
 
   @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
 }
 
 model RolePermission {
-  roleId       String
-  permissionId String
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
+  roleId       String    @db.Uuid @map("role_id")
+  permissionId String    @db.Uuid @map("permission_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  deletedAt    DateTime? @map("deleted_at")
+  deletedById  String?   @db.Uuid @map("deleted_by")
+
+  role       Role       @relation("role_permissions", fields: [roleId], references: [id])
+  permission Permission @relation("permission_role_permissions", fields: [permissionId], references: [id])
+  deletedBy  User?      @relation("role_permission_deleted_by", fields: [deletedById], references: [id])
 
   @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model Freelancer {
-  id        String     @id @default(uuid())
-  userId    String     @unique
-  status    UserStatus
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @unique @db.Uuid @map("user_id")
+  status      FreelancerStatus
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+  deletedById String?          @db.Uuid @map("deleted_by")
 
   user       User        @relation(fields: [userId], references: [id])
+  deletedBy  User?       @relation("freelancer_deleted_by", fields: [deletedById], references: [id])
   attendance Attendance[]
+
+  @@index([userId])
+  @@map("freelancers")
 }
 
 model Contract {
-  id        String         @id @default(uuid())
-  status    ContractStatus
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(uuid()) @db.Uuid
+  status      ContractStatus
+  startDate   DateTime       @map("start_date")
+  endDate     DateTime       @map("end_date")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+  deletedById String?        @db.Uuid @map("deleted_by")
 
+  versions   ContractVersion[]
   attendance Attendance[]
+  deletedBy  User? @relation("contract_deleted_by", fields: [deletedById], references: [id])
+
+  @@index([startDate])
+  @@index([endDate])
+  @@map("contracts")
+}
+
+model ContractVersion {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  contractId          String                 @db.Uuid @map("contract_id")
+  versionNumber       Int                    @map("version_number")
+  status              ContractVersionStatus
+  effectiveFrom       DateTime               @map("effective_from")
+  effectiveTo         DateTime               @map("effective_to")
+  signedAt            DateTime?              @map("signed_at")
+  termsHash           String                 @map("terms_hash")
+  supersedesVersionId String?                @db.Uuid @map("supersedes_version_id")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
+  deletedById         String?                @db.Uuid @map("deleted_by")
+
+  contract     Contract         @relation(fields: [contractId], references: [id])
+  supersedes   ContractVersion? @relation("contract_version_supersedes", fields: [supersedesVersionId], references: [id])
+  supersededBy ContractVersion[] @relation("contract_version_supersedes")
+  deletedBy    User?            @relation("contract_version_deleted_by", fields: [deletedById], references: [id])
+
+  @@unique([contractId, versionNumber])
+  @@index([contractId])
+  @@index([effectiveFrom])
+  @@index([effectiveTo])
+  @@map("contract_versions")
 }
 
 model Attendance {
-  id               String           @id @default(uuid())
-  freelancerId     String
-  contractId       String
-  workDate         DateTime
-  hours            Float
-  status           AttendanceStatus
-  approvedByUserId String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id           String           @id @default(uuid()) @db.Uuid
+  freelancerId String           @db.Uuid @map("freelancer_id")
+  contractId   String           @db.Uuid @map("contract_id")
+  workDate     DateTime         @map("work_date")
+  hours        Float
+  status       AttendanceStatus
+  approvedById String?          @db.Uuid @map("approved_by")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  deletedAt    DateTime?        @map("deleted_at")
+  deletedById  String?          @db.Uuid @map("deleted_by")
 
   freelancer Freelancer @relation(fields: [freelancerId], references: [id])
   contract   Contract   @relation(fields: [contractId], references: [id])
-  approver   User?      @relation("attendance_approver", fields: [approvedByUserId], references: [id])
+  approver   User?      @relation("attendance_approver", fields: [approvedById], references: [id])
+  deletedBy  User?      @relation("attendance_deleted_by", fields: [deletedById], references: [id])
 
   @@unique([freelancerId, workDate])
+  @@index([contractId])
+  @@index([freelancerId])
+  @@index([workDate])
+  @@map("attendance")
 }
 
 model AuditEvent {
-  id         String   @id @default(uuid())
-  actorUserId String
-  action     String
-  entityType String
-  entityId   String
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String   @db.Uuid @map("actor_user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
+  deletedById String?  @db.Uuid @map("deleted_by")
+
+  actor     User  @relation("audit_actor", fields: [actorUserId], references: [id])
+  deletedBy User? @relation("audit_deleted_by", fields: [deletedById], references: [id])
+
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("audit_events")
 }
