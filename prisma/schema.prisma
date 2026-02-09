@@ -1,0 +1,447 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  EMPLOYEE
+  FREELANCER
+  SERVICE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  OFFBOARDED
+}
+
+enum FreelancerStatus {
+  ACTIVE
+  ONBOARDING
+  SUSPENDED
+  OFFBOARDED
+}
+
+enum VendorOrgStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum WorkItemStatus {
+  PLANNED
+  IN_PROGRESS
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+}
+
+enum ContractStatus {
+  DRAFT
+  IN_REVIEW
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  EXPIRED
+}
+
+enum ContractVersionStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SIGNED
+  SUPERSEDED
+  VOID
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum PaymentStatus {
+  PENDING
+  RELEASED
+  FAILED
+  REVERSED
+}
+
+enum AccessGrantStatus {
+  REQUESTED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum PaymentSummaryStatus {
+  DRAFT
+  APPROVED
+  ON_HOLD
+}
+
+enum BillingExceptionStatus {
+  OPEN
+  RESOLVED
+}
+
+enum ReminderType {
+  H30
+  H14
+  H7
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  userType  UserType
+  status    UserStatus
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+
+  roles            UserRole[]
+  freelancer       Freelancer?
+  createdAudits    AuditEvent[] @relation("audit_actor")
+  picWorkItems     WorkItem[]   @relation("pic_user")
+  approvedAttend   Attendance[] @relation("attendance_approver")
+  approvedAdjust   AttendanceAdjustment[] @relation("adjustment_approver")
+}
+
+model Role {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id    String @id @default(uuid())
+  code  String @unique
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id])
+  role   Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model VendorOrganization {
+  id        String          @id @default(uuid())
+  name      String
+  status    VendorOrgStatus
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  deletedAt DateTime?
+
+  freelancers Freelancer[]
+  contracts   Contract[]
+}
+
+model Freelancer {
+  id             String           @id @default(uuid())
+  userId         String           @unique
+  vendorOrgId    String
+  status         FreelancerStatus
+  complianceHold Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  deletedAt      DateTime?
+
+  user       User             @relation(fields: [userId], references: [id])
+  vendorOrg  VendorOrganization @relation(fields: [vendorOrgId], references: [id])
+  attendance Attendance[]
+  workItems  WorkItem[]        @relation("work_item_freelancer")
+  invoices   Invoice[]
+  summaries  PaymentSummary[]
+}
+
+model Project {
+  id          String       @id @default(uuid())
+  name        String
+  ownerUserId String?
+  status      ProjectStatus
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
+
+  workItems WorkItem[]
+}
+
+model WorkItem {
+  id                    String        @id @default(uuid())
+  projectId             String
+  contractId            String
+  assignedFreelancerId  String
+  picUserId             String
+  status                WorkItemStatus
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  deletedAt             DateTime?
+
+  project     Project    @relation(fields: [projectId], references: [id])
+  contract    Contract   @relation(fields: [contractId], references: [id])
+  freelancer  Freelancer @relation("work_item_freelancer", fields: [assignedFreelancerId], references: [id])
+  picUser     User       @relation("pic_user", fields: [picUserId], references: [id])
+  attendance  Attendance[]
+}
+
+model Contract {
+  id               String         @id @default(uuid())
+  contractNumber   String         @unique
+  vendorOrgId      String
+  currentVersionId String?
+  status           ContractStatus
+  startDate        DateTime
+  endDate          DateTime
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  vendorOrg    VendorOrganization @relation(fields: [vendorOrgId], references: [id])
+  currentVersion ContractVersion? @relation("current_version", fields: [currentVersionId], references: [id])
+  versions     ContractVersion[]  @relation("contract_versions")
+  workItems    WorkItem[]
+  attendance   Attendance[]
+  accessGrants AccessGrant[]
+  notifications ContractNotification[]
+}
+
+model ContractVersion {
+  id                   String               @id @default(uuid())
+  contractId           String
+  versionNumber        Int
+  effectiveFrom        DateTime
+  effectiveTo          DateTime
+  status               ContractVersionStatus
+  hourlyRate           Float
+  termsHash            String
+  signedAt             DateTime?
+  supersedesVersionId  String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  contract      Contract          @relation("contract_versions", fields: [contractId], references: [id])
+  supersedes    ContractVersion?  @relation("supersedes_version", fields: [supersedesVersionId], references: [id])
+  approvals     ContractApproval[]
+  documents     ContractDocument[]
+  notifications ContractNotification[]
+
+  @@unique([contractId, versionNumber])
+  @@index([contractId, effectiveFrom, effectiveTo])
+}
+
+model ContractApproval {
+  id                String         @id @default(uuid())
+  contractVersionId String
+  approverUserId    String
+  status            ApprovalStatus
+  createdAt         DateTime       @default(now())
+
+  contractVersion ContractVersion @relation(fields: [contractVersionId], references: [id])
+}
+
+model ContractDocument {
+  id                String         @id @default(uuid())
+  contractVersionId String
+  storageUri        String
+  checksum          String
+  status            String
+  createdAt         DateTime       @default(now())
+
+  contractVersion ContractVersion @relation(fields: [contractVersionId], references: [id])
+}
+
+model ContractNotification {
+  id               String        @id @default(uuid())
+  contractId       String
+  contractVersionId String
+  reminderType     ReminderType
+  createdAt        DateTime      @default(now())
+
+  contract        Contract       @relation(fields: [contractId], references: [id])
+  contractVersion ContractVersion @relation(fields: [contractVersionId], references: [id])
+
+  @@unique([contractId, contractVersionId, reminderType])
+}
+
+model Attendance {
+  id                 String           @id @default(uuid())
+  freelancerId       String
+  contractId         String
+  workItemId         String
+  workDate           DateTime
+  hours              Float
+  status             AttendanceStatus
+  submittedAt        DateTime?
+  approvedAt         DateTime?
+  approvedByUserId   String?
+  lateReason         String?
+  picJustification   String?
+  complianceOverride Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  deletedAt          DateTime?
+
+  freelancer Freelancer @relation(fields: [freelancerId], references: [id])
+  contract   Contract   @relation(fields: [contractId], references: [id])
+  workItem   WorkItem   @relation(fields: [workItemId], references: [id])
+  approver   User?      @relation("attendance_approver", fields: [approvedByUserId], references: [id])
+  adjustments AttendanceAdjustment[]
+  summaryItems PaymentSummaryItem[]
+  exceptions  BillingException[]
+
+  @@unique([freelancerId, workDate])
+  @@index([contractId, workDate])
+}
+
+model AttendanceAdjustment {
+  id               String           @id @default(uuid())
+  attendanceId     String
+  adjustedHours    Float
+  reason           String
+  status           AdjustmentStatus
+  approvedAt       DateTime?
+  approvedByUserId String?
+  createdAt        DateTime         @default(now())
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id])
+  approver   User?      @relation("adjustment_approver", fields: [approvedByUserId], references: [id])
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  freelancerId String
+  contractId   String
+  periodStart  DateTime
+  periodEnd    DateTime
+  status       InvoiceStatus
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  freelancer Freelancer @relation(fields: [freelancerId], references: [id])
+  contract   Contract   @relation(fields: [contractId], references: [id])
+  payments   Payment[]
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  invoiceId       String
+  status          PaymentStatus
+  paymentReference String?
+  createdAt       DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+}
+
+model PaymentSummary {
+  id           String              @id @default(uuid())
+  freelancerId String
+  contractId   String
+  periodStart  DateTime
+  periodEnd    DateTime
+  status       PaymentSummaryStatus
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  freelancer Freelancer            @relation(fields: [freelancerId], references: [id])
+  contract   Contract              @relation(fields: [contractId], references: [id])
+  items      PaymentSummaryItem[]
+}
+
+model PaymentSummaryItem {
+  id               String         @id @default(uuid())
+  paymentSummaryId String
+  attendanceId     String
+  hours            Float
+  rate             Float
+  amount           Float
+
+  summary    PaymentSummary @relation(fields: [paymentSummaryId], references: [id])
+  attendance Attendance     @relation(fields: [attendanceId], references: [id])
+}
+
+model BillingException {
+  id           String                 @id @default(uuid())
+  attendanceId String
+  reason       String
+  status       BillingExceptionStatus
+  createdAt    DateTime               @default(now())
+  resolvedAt   DateTime?
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id])
+}
+
+model AccessGrant {
+  id         String          @id @default(uuid())
+  userId     String
+  projectId  String?
+  contractId String
+  status     AccessGrantStatus
+  startAt    DateTime
+  endAt      DateTime?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([contractId, status])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorUserId String
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("audit_actor", fields: [actorUserId], references: [id])
+}
