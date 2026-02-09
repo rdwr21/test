@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { ActorId } from "../auth/actor-id.decorator";
 import { Roles } from "../auth/roles.decorator";
 import { ApproveContractVersionDto } from "./dto/approve-contract-version.dto";
-import { CreateContractDraftDto } from "./dto/create-contract.dto";
+import { CreateContractDto, CreateContractDraftDto } from "./dto/create-contract.dto";
+import { CreateContractVersionDto } from "./dto/create-contract-version.dto";
 import { GetActiveContractByDateDto } from "./dto/get-active-contract.dto";
 import { SignContractVersionDto } from "./dto/sign-contract-version.dto";
 import { ContractsService } from "./contracts.service";
@@ -11,9 +13,25 @@ export class ContractsController {
   constructor(private readonly contractsService: ContractsService) {}
 
   @Roles("hr")
+  @Post()
+  async createContract(@Body() dto: CreateContractDto, @ActorId() actorUserId: string) {
+    return this.contractsService.createContract(dto, actorUserId);
+  }
+
+  @Roles("hr")
   @Post("drafts")
   async createDraft(@Body() dto: CreateContractDraftDto) {
     return this.contractsService.createContractDraft(dto);
+  }
+
+  @Roles("hr")
+  @Post(":id/versions")
+  async createVersion(
+    @Param("id") contractId: string,
+    @Body() dto: CreateContractVersionDto,
+    @ActorId() actorUserId: string,
+  ) {
+    return this.contractsService.createVersion(contractId, dto, actorUserId);
   }
 
   @Roles("hr")

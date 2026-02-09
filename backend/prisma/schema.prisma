@@ -45,6 +45,36 @@ enum ContractVersionStatus {
   VOID
 }
 
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentSummaryStatus {
+  DRAFT
+  APPROVED
+  ON_HOLD
+}
+
+enum BillingExceptionStatus {
+  OPEN
+  RESOLVED
+}
+
+enum AccessGrantStatus {
+  REQUESTED
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum ReminderType {
+  H30
+  H14
+  H7
+}
+
 model User {
   id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
@@ -131,6 +161,7 @@ model Freelancer {
   id          String           @id @default(uuid()) @db.Uuid
   userId      String           @unique @db.Uuid @map("user_id")
   status      FreelancerStatus
+  complianceHold Boolean       @default(false) @map("compliance_hold")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
   deletedAt   DateTime?        @map("deleted_at")
@@ -146,6 +177,9 @@ model Freelancer {
 
 model Contract {
   id          String         @id @default(uuid()) @db.Uuid
+  contractNumber String?     @map("contract_number")
+  vendorOrgId  String?       @db.Uuid @map("vendor_org_id")
+  currentVersionId String?   @db.Uuid @map("current_version_id")
   status      ContractStatus
   startDate   DateTime       @map("start_date")
   endDate     DateTime       @map("end_date")
@@ -155,9 +189,13 @@ model Contract {
   deletedById String?        @db.Uuid @map("deleted_by")
 
   versions   ContractVersion[]
+  currentVersion ContractVersion? @relation("current_version", fields: [currentVersionId], references: [id])
   attendance Attendance[]
+  notifications ContractNotification[]
+  accessGrants AccessGrant[]
   deletedBy  User? @relation("contract_deleted_by", fields: [deletedById], references: [id])
 
+  @@index([contractNumber])
   @@index([startDate])
   @@index([endDate])
   @@map("contracts")
@@ -171,6 +209,7 @@ model ContractVersion {
   effectiveFrom       DateTime               @map("effective_from")
   effectiveTo         DateTime               @map("effective_to")
   signedAt            DateTime?              @map("signed_at")
+  hourlyRate          Float                  @default(0) @map("hourly_rate")
   termsHash           String                 @map("terms_hash")
   supersedesVersionId String?                @db.Uuid @map("supersedes_version_id")
   createdAt           DateTime               @default(now()) @map("created_at")
@@ -181,6 +220,7 @@ model ContractVersion {
   contract     Contract         @relation(fields: [contractId], references: [id])
   supersedes   ContractVersion? @relation("contract_version_supersedes", fields: [supersedesVersionId], references: [id])
   supersededBy ContractVersion[] @relation("contract_version_supersedes")
+  notifications ContractNotification[]
   deletedBy    User?            @relation("contract_version_deleted_by", fields: [deletedById], references: [id])
 
   @@unique([contractId, versionNumber])
@@ -198,6 +238,7 @@ model Attendance {
   hours        Float
   status       AttendanceStatus
   approvedById String?          @db.Uuid @map("approved_by")
+  approvedAt   DateTime?        @map("approved_at")
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
   deletedAt    DateTime?        @map("deleted_at")
@@ -206,6 +247,9 @@ model Attendance {
   freelancer Freelancer @relation(fields: [freelancerId], references: [id])
   contract   Contract   @relation(fields: [contractId], references: [id])
   approver   User?      @relation("attendance_approver", fields: [approvedById], references: [id])
+  adjustments AttendanceAdjustment[]
+  summaryItems PaymentSummaryItem[]
+  exceptions  BillingException[]
   deletedBy  User?      @relation("attendance_deleted_by", fields: [deletedById], references: [id])
 
   @@unique([freelancerId, workDate])
@@ -213,6 +257,107 @@ model Attendance {
   @@index([freelancerId])
   @@index([workDate])
   @@map("attendance")
+}
+
+model AttendanceAdjustment {
+  id               String           @id @default(uuid()) @db.Uuid
+  attendanceId     String           @db.Uuid @map("attendance_id")
+  adjustedHours    Float            @map("adjusted_hours")
+  reason           String
+  status           AdjustmentStatus
+  approvedAt       DateTime?        @map("approved_at")
+  approvedById     String?          @db.Uuid @map("approved_by")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id])
+  approver   User?      @relation("adjustment_approver", fields: [approvedById], references: [id])
+
+  @@index([attendanceId])
+  @@map("attendance_adjustments")
+}
+
+model PaymentSummary {
+  id           String               @id @default(uuid()) @db.Uuid
+  freelancerId String               @db.Uuid @map("freelancer_id")
+  contractId   String               @db.Uuid @map("contract_id")
+  periodStart  DateTime             @map("period_start")
+  periodEnd    DateTime             @map("period_end")
+  status       PaymentSummaryStatus
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  freelancer Freelancer            @relation(fields: [freelancerId], references: [id])
+  contract   Contract              @relation(fields: [contractId], references: [id])
+  items      PaymentSummaryItem[]
+
+  @@index([freelancerId])
+  @@index([contractId])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@map("payment_summaries")
+}
+
+model PaymentSummaryItem {
+  id               String         @id @default(uuid()) @db.Uuid
+  paymentSummaryId String         @db.Uuid @map("payment_summary_id")
+  attendanceId     String         @db.Uuid @map("attendance_id")
+  hours            Float
+  rate             Float
+  amount           Float
+
+  summary    PaymentSummary @relation(fields: [paymentSummaryId], references: [id])
+  attendance Attendance     @relation(fields: [attendanceId], references: [id])
+
+  @@index([paymentSummaryId])
+  @@index([attendanceId])
+  @@map("payment_summary_items")
+}
+
+model BillingException {
+  id           String                 @id @default(uuid()) @db.Uuid
+  attendanceId String                 @db.Uuid @map("attendance_id")
+  reason       String
+  status       BillingExceptionStatus
+  createdAt    DateTime               @default(now()) @map("created_at")
+  resolvedAt   DateTime?              @map("resolved_at")
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id])
+
+  @@index([attendanceId])
+  @@map("billing_exceptions")
+}
+
+model AccessGrant {
+  id         String          @id @default(uuid()) @db.Uuid
+  userId     String          @db.Uuid @map("user_id")
+  projectId  String?         @db.Uuid @map("project_id")
+  contractId String          @db.Uuid @map("contract_id")
+  status     AccessGrantStatus
+  startAt    DateTime        @map("start_at")
+  endAt      DateTime?       @map("end_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([contractId])
+  @@index([status])
+  @@map("access_grants")
+}
+
+model ContractNotification {
+  id                String        @id @default(uuid()) @db.Uuid
+  contractId        String        @db.Uuid @map("contract_id")
+  contractVersionId String        @db.Uuid @map("contract_version_id")
+  reminderType      ReminderType  @map("reminder_type")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  contract        Contract        @relation(fields: [contractId], references: [id])
+  contractVersion ContractVersion @relation(fields: [contractVersionId], references: [id])
+
+  @@unique([contractId, contractVersionId, reminderType])
+  @@index([contractId])
+  @@map("contract_notifications")
 }
 
 model AuditEvent {

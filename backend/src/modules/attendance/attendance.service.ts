@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { AttendanceStatus } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { ContractsService } from "../contracts/contracts.service";
-import { PrismaService } from "../../prisma/prisma.service";
+import { PrismaService } from "../users/prisma.service";
 import { SubmitAttendanceDto } from "./dto/submit-attendance.dto";
 
 @Injectable()

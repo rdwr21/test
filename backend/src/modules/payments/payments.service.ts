@@ -7,7 +7,7 @@ import {
   PaymentSummaryStatus,
 } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
-import { PrismaService } from "../prisma/prisma.service";
+import { PrismaService } from "../users/prisma.service";
 import { GeneratePaymentSummaryDto } from "./dto/generate-payment-summary.dto";
 
 type ExceptionInput = { attendanceId: string; reason: string };
@@ -140,12 +140,9 @@ export class PaymentsService {
       return created;
     });
 
-    await this.audit.log({
-      actorUserId,
-      action: "PAYMENT_SUMMARY_GENERATE",
-      entityType: "payment_summary",
-      entityId: summary.id,
-      metadata: { items: items.length, exceptions: exceptions.length },
+    await this.audit.log(actorUserId, "PAYMENT_SUMMARY_GENERATE", "payment_summary", summary.id, {
+      items: items.length,
+      exceptions: exceptions.length,
     });
 
     return summary;

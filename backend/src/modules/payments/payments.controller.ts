@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from "@nestjs/common";
-import { ActorId } from "../common/decorators/actor-id.decorator";
+import { ActorId } from "../auth/actor-id.decorator";
 import { GeneratePaymentSummaryDto } from "./dto/generate-payment-summary.dto";
 import { PaymentsService } from "./payments.service";
 
