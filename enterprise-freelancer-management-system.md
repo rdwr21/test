@@ -291,3 +291,58 @@
 - **Retention enforcement**: scheduled jobs purge only after retention windows
   and compliance approvals; audit_events are never hard deleted.
 
+## Contract lifecycle logic (enterprise-grade)
+### Core rules
+1. **Versioning (no overwrite)**
+   - Any modification to terms creates a new `contract_versions` record.
+   - The prior signed version becomes `superseded`; it is never edited.
+   - `contracts.current_version_id` is updated only when a version is signed.
+2. **Automated expiration handling**
+   - Scheduler checks daily (or hourly for large volume) for contracts within
+     their effective date window.
+   - At `end_date` (or `effective_to` of the signed version), the contract
+     status becomes `expired` unless a new signed version is already active.
+3. **Reminder logic (H-30, H-14, H-7)**
+   - Reminders are sent relative to the effective end date of the signed
+     version: H-30, H-14, H-7.
+   - Reminders are idempotent using a `contract_notifications` table with
+     unique `(contract_id, version_id, reminder_type)` to prevent duplicates.
+4. **Automatic access suspension**
+   - At expiration or contract status `suspended/terminated`, access grants
+     linked to the contract move to `suspended` and access tokens are revoked.
+5. **Re-activation on new contract**
+   - When a new version is signed, the system re-evaluates access against the
+     new contract scope and re-activates eligible access grants.
+
+### Workflow sequence (summary)
+1. Draft -> Review -> Approved -> Signed (new version).
+2. `current_version_id` updated and contract status set to `active`.
+3. Scheduler emits reminder events at H-30/H-14/H-7.
+4. On end date, if no newer signed version, set `expired` and suspend access.
+5. If a new signed version exists, mark prior version `superseded`, keep active.
+
+### Edge cases and handling
+- **Signed renewal before expiry**: If a new version is signed before the old
+  version expires, mark the old version `superseded` and keep contract `active`;
+  do not suspend access.
+- **Overlapping versions**: Allow overlap only if explicitly approved; the
+  system chooses the version with the latest `effective_from` that is signed.
+- **Late signature after expiry**: If the contract expires and a renewal is
+  signed later, access is suspended during the gap and re-activated on signing.
+- **Backdated amendments**: New version cannot have an `effective_from` earlier
+  than the current version start without Legal approval; audit the exception.
+- **Manual suspension**: If Compliance suspends a contract, reminders stop and
+  access is suspended immediately; renewal requires explicit re-activation.
+- **Termination for breach**: Access is revoked and cannot be re-activated by
+  a renewal until Compliance clears the breach flag.
+- **Pending invoice/timesheet**: Expiration does not block payment of approved
+  work; payments remain governed by contract terms at the time of work.
+- **Multiple projects per contract**: Access suspension applies to all project
+  grants tied to the contract; other contracts remain unaffected.
+- **Timezone boundaries**: Use contract-local timezone for end date evaluation;
+  store all dates in UTC with timezone metadata to prevent off-by-one errors.
+- **Reminder duplicates**: Use idempotency keys and audit logs to avoid repeated
+  notifications in retry scenarios.
+- **External system lag**: If ERP or IdP sync is delayed, keep internal access
+  state authoritative and reconcile async with retry/backoff.
+
