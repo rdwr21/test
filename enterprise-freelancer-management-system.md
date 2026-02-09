@@ -389,3 +389,30 @@
 - **Cross-checks**: reconcile attendance with task status and deliverables.
 - **Geo/timezone checks**: validate work_date against contract timezone.
 
+## Role-based approval system
+### Approval rules
+- **PIC approvals**: PIC approves attendance and task completion for assigned
+  work items only; approvals are time-bound to the active contract period.
+- **HR contract ownership**: HR manages contract creation, updates, and renewal
+  workflows (in coordination with Legal/Procurement as required by policy).
+- **Finance visibility**: Finance can view only approved attendance, tasks, and
+  invoices; draft or rejected records are hidden.
+- **Admin limitations**: Admins can manage configuration and access but cannot
+  modify approved records; any correction must be an adjustment with audit trail.
+- **Separation of duties**: No role can both submit and approve the same record.
+
+### Permission matrix (summary)
+| Capability | Freelancer | PIC | HR | Finance | Admin |
+| --- | --- | --- | --- | --- | --- |
+| Submit attendance | Yes | No | No | No | No |
+| Approve attendance | No | Yes | No | No | No |
+| Submit task completion | Yes | No | No | No | No |
+| Approve task completion | No | Yes | No | No | No |
+| Create/modify contracts (draft) | No | No | Yes | No | No |
+| Approve/sign contracts | No | No | Yes (per policy) | No | No |
+| View approved attendance/tasks | Limited to own | Yes | Yes | Yes | Yes |
+| View unapproved records | Limited to own | Yes | Yes | No | Yes |
+| Modify approved records | No | No | No | No | No |
+| Create adjustments to approved records | No | Yes (with reason) | Yes | No | No |
+| Manage access and roles | No | No | No | No | Yes |
+
