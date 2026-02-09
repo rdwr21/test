@@ -416,3 +416,36 @@
 | Create adjustments to approved records | No | Yes (with reason) | Yes | No | No |
 | Manage access and roles | No | No | No | No | Yes |
 
+## Payment calculation logic (no money transfer)
+### Core rules
+- **Approved attendance only**: include attendance rows with `status=approved`
+  and no unresolved adjustments.
+- **Active contract version**: apply the rate from the contract version that
+  is active on the attendance `work_date`.
+- **Monthly summary**: calculate totals per freelancer per calendar month and
+  per contract; generate a summarized invoice record for review.
+- **Exception handling**: record and route exceptions without paying out.
+
+### Calculation steps
+1. **Select eligible attendance**
+   - Approved attendance within the month and within contract dates.
+2. **Resolve contract version**
+   - For each record, find the signed contract version active on `work_date`.
+3. **Apply rate**
+   - Multiply `hours * hourly_rate` (or per-unit rate) from that version.
+4. **Aggregate**
+   - Summarize by `freelancer_id`, `contract_id`, and month.
+5. **Generate summary**
+   - Create a monthly summary with line items and approval status.
+
+### Exception handling
+- **Missing active contract version**: flag attendance as `billing_exception`
+  and exclude from summary until resolved.
+- **Rate conflicts**: if multiple versions match, choose latest `effective_from`
+  and flag for review.
+- **Late approvals**: if attendance is approved after month close, add to next
+  cycle with audit note.
+- **Adjustments after approval**: create delta line item for the next summary.
+- **Compliance holds**: if freelancer is on compliance hold, block summary
+  approval but still calculate amounts for visibility.
+
