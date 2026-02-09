@@ -346,3 +346,46 @@
 - **External system lag**: If ERP or IdP sync is delayed, keep internal access
   state authoritative and reconcile async with retry/backoff.
 
+## Enterprise attendance logic
+### Core rules
+1. **Task-linked attendance**
+   - Each attendance record references a single work item (task) and contract.
+   - Tasks must be assigned to the freelancer and within contract dates.
+2. **One record per day**
+   - Enforced uniqueness on `(freelancer_id, work_date)` in the attendance table.
+3. **PIC approval**
+   - A Person-in-Charge (PIC) approves attendance for the assigned task.
+4. **Immutable approved records**
+   - Approved attendance rows are immutable; corrections require a new
+     "adjustment" record linked to the original.
+5. **Late submission rules**
+   - Submissions after T+2 business days require PIC justification.
+   - Submissions after T+7 business days require Compliance review.
+
+### Suggested table fields
+- `attendance`
+  - `id` (PK), `freelancer_id` (FK), `contract_id` (FK), `work_item_id` (FK)
+  - `work_date`, `hours`, `status` (draft, submitted, approved, rejected)
+  - `submitted_at`, `approved_at`, `approved_by_user_id` (FK)
+  - `late_reason`, `pic_justification`, `compliance_override`
+- `attendance_adjustments`
+  - `id` (PK), `attendance_id` (FK), `adjusted_hours`, `reason`, `status`
+  - `approved_at`, `approved_by_user_id` (FK)
+
+### Validation rules
+- **Assignment validation**: work item must be assigned to freelancer and active
+  on `work_date`.
+- **Contract validation**: contract must be `active` on `work_date`.
+- **One-per-day validation**: reject duplicates on `(freelancer_id, work_date)`.
+- **Hour limits**: enforce per-contract maximum hours per day and per week.
+- **PIC validation**: approver must be the assigned PIC for the work item.
+- **Late submission**: apply escalation thresholds (T+2, T+7) with approvals.
+
+### Fraud prevention controls
+- **Time integrity**: capture submission source (device/IP) and lock after
+  approval; write all changes to audit trail.
+- **Outlier detection**: flag abnormal hour spikes or repeated late entries.
+- **Segregation of duties**: PIC cannot approve their own attendance.
+- **Cross-checks**: reconcile attendance with task status and deliverables.
+- **Geo/timezone checks**: validate work_date against contract timezone.
+
