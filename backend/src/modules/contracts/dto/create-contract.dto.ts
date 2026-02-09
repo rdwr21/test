@@ -1,12 +1,16 @@
-import { IsDateString, IsNotEmpty } from "class-validator";
+import { IsDateString, IsOptional, IsString, IsUUID } from "class-validator";
 
-export class CreateContractDto {
+export class CreateContractDraftDto {
+  @IsOptional()
+  @IsUUID()
+  contractId?: string;
+
   @IsDateString()
-  startDate!: string;
+  effectiveFrom!: string;
 
   @IsDateString()
-  endDate!: string;
+  effectiveTo!: string;
 
-  @IsNotEmpty()
-  status!: string;
+  @IsString()
+  termsHash!: string;
 }

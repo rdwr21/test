@@ -1,13 +1,21 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { AttendanceStatus } from "@prisma/client";
+import { ContractsService } from "../contracts/contracts.service";
 import { PrismaService } from "../../prisma/prisma.service";
 
 @Injectable()
 export class AttendanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly contractsService: ContractsService,
+  ) {}
 
   async submit(freelancerId: string, contractId: string, workDate: string, hours: number) {
     const date = new Date(workDate);
+    const activeContract = await this.contractsService.getActiveContractByDate(contractId, date);
+    if (!activeContract) {
+      throw new BadRequestException("Contract is not active for the given date");
+    }
     return this.prisma.attendance.create({
       data: {
         freelancerId,
@@ -31,7 +39,7 @@ export class AttendanceService {
       where: { id: attendanceId },
       data: {
         status: AttendanceStatus.APPROVED,
-        approvedByUserId: approverId,
+        approvedById: approverId,
       },
     });
   }
