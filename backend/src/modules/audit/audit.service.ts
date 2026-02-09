@@ -5,7 +5,13 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async log(actorUserId: string, action: string, entityType: string, entityId: string, metadata?: object) {
+  async log(
+    actorUserId: string,
+    action: string,
+    entityType: string,
+    entityId: string,
+    metadata?: object,
+  ) {
     await this.prisma.auditEvent.create({
       data: {
         actorUserId,
