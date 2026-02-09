@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, UserStatus } from "@prisma/client";
+import { UserStatus } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -10,14 +10,38 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
-      include: { roles: { include: { role: true } } },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: { permission: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
   async findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      include: { roles: { include: { role: true } } },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: { permission: true },
+                },
+              },
+            },
+          },
+        },
+      },
     });
   }
 
@@ -37,7 +61,19 @@ export class UsersService {
           passwordHash,
           status: UserStatus.ACTIVE,
         },
-        include: { roles: { include: { role: true } } },
+        include: {
+          roles: {
+            include: {
+              role: {
+                include: {
+                  permissions: {
+                    include: { permission: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
 
       const roleRecords = await Promise.all(
@@ -59,7 +95,19 @@ export class UsersService {
 
       const updated = await tx.user.findUnique({
         where: { id: created.id },
-        include: { roles: { include: { role: true } } },
+        include: {
+          roles: {
+            include: {
+              role: {
+                include: {
+                  permissions: {
+                    include: { permission: true },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!updated) {
