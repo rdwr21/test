@@ -173,3 +173,121 @@
 - **Ticketing/ITSM**: change requests, access exceptions, audit tickets.
 - **SIEM/SOC tooling**: security events, anomalous access alerts.
 
+## Enterprise-grade relational database schema
+### Table structures with keys and status fields
+**Common columns (all core tables)**
+- `id` (PK, UUID)
+- `created_at`, `created_by` (FK -> users.id)
+- `updated_at`, `updated_by` (FK -> users.id)
+- `deleted_at`, `deleted_by` (FK -> users.id, nullable)
+
+**users**
+- `id` (PK), `email` (unique), `user_type` (employee, freelancer, service)
+- `status` (active, suspended, offboarded)
+
+**roles**
+- `id` (PK), `name` (unique)
+
+**permissions**
+- `id` (PK), `code` (unique)
+
+**user_roles**
+- `user_id` (FK -> users.id), `role_id` (FK -> roles.id)
+- PK (`user_id`, `role_id`)
+
+**vendor_organizations**
+- `id` (PK), `name`, `status` (active, suspended, terminated)
+
+**freelancers**
+- `id` (PK), `user_id` (FK -> users.id), `vendor_org_id` (FK -> vendor_organizations.id)
+- `status` (active, onboarding, suspended, offboarded)
+
+**projects**
+- `id` (PK), `name`, `owner_user_id` (FK -> users.id)
+- `status` (active, paused, closed)
+
+**project_assignments**
+- `id` (PK), `project_id` (FK -> projects.id), `freelancer_id` (FK -> freelancers.id)
+- `contract_id` (FK -> contracts.id)
+- `status` (assigned, active, completed, removed)
+
+**contracts**
+- `id` (PK), `contract_number` (unique), `vendor_org_id` (FK -> vendor_organizations.id)
+- `current_version_id` (FK -> contract_versions.id)
+- `status` (draft, in_review, active, suspended, terminated, expired)
+- `start_date`, `end_date`
+
+**contract_versions**
+- `id` (PK), `contract_id` (FK -> contracts.id)
+- `version_number` (int, unique per contract)
+- `effective_from`, `effective_to`
+- `status` (draft, in_review, approved, signed, superseded, void)
+- `terms_hash`, `signed_at`, `supersedes_version_id` (FK -> contract_versions.id, nullable)
+
+**contract_approvals**
+- `id` (PK), `contract_version_id` (FK -> contract_versions.id)
+- `approver_user_id` (FK -> users.id)
+- `status` (pending, approved, rejected)
+
+**contract_documents**
+- `id` (PK), `contract_version_id` (FK -> contract_versions.id)
+- `storage_uri`, `checksum`, `status` (active, revoked)
+
+**work_items**
+- `id` (PK), `project_id` (FK -> projects.id), `contract_id` (FK -> contracts.id)
+- `status` (planned, in_progress, submitted, accepted, rejected)
+
+**timesheets**
+- `id` (PK), `freelancer_id` (FK -> freelancers.id), `contract_id` (FK -> contracts.id)
+- `period_start`, `period_end`
+- `status` (draft, submitted, approved, rejected, paid)
+
+**timesheet_entries**
+- `id` (PK), `timesheet_id` (FK -> timesheets.id)
+- `work_item_id` (FK -> work_items.id, nullable), `hours`
+
+**invoices**
+- `id` (PK), `freelancer_id` (FK -> freelancers.id), `contract_id` (FK -> contracts.id)
+- `timesheet_id` (FK -> timesheets.id, nullable)
+- `status` (draft, submitted, approved, rejected, paid)
+
+**payments**
+- `id` (PK), `invoice_id` (FK -> invoices.id)
+- `status` (pending, released, failed, reversed)
+- `payment_reference`
+
+**compliance_artifacts**
+- `id` (PK), `freelancer_id` (FK -> freelancers.id)
+- `artifact_type`, `status` (valid, expired, revoked, pending)
+- `expires_at`
+
+**access_grants**
+- `id` (PK), `user_id` (FK -> users.id), `project_id` (FK -> projects.id)
+- `contract_id` (FK -> contracts.id)
+- `status` (requested, active, suspended, revoked)
+- `start_at`, `end_at`
+
+**audit_events**
+- `id` (PK), `actor_user_id` (FK -> users.id)
+- `event_type`, `entity_type`, `entity_id`
+- `policy_decision`, `ip_address`, `created_at`
+
+### Contract versioning strategy
+- **Immutable versions**: every contract change creates a new row in
+  `contract_versions` with a monotonic `version_number`.
+- **Active pointer**: `contracts.current_version_id` points to the currently
+  active signed version.
+- **Supersession chain**: `contract_versions.supersedes_version_id` links the
+  new version to the previous signed version for traceability.
+- **Status gating**: only `approved` and `signed` versions can become current.
+- **Document linkage**: signed files are stored in `contract_documents` with
+  checksums tied to the version hash.
+
+### Soft delete vs hard delete policy
+- **Soft delete (default)**: set `deleted_at` and `deleted_by` for all business
+  entities; data remains queryable for audit and legal hold.
+- **Hard delete (exception only)**: allowed only for test data or when required
+  by legal/regulatory erasure (e.g., verified privacy request).
+- **Retention enforcement**: scheduled jobs purge only after retention windows
+  and compliance approvals; audit_events are never hard deleted.
+
