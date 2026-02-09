@@ -449,3 +449,32 @@
 - **Compliance holds**: if freelancer is on compliance hold, block summary
   approval but still calculate amounts for visibility.
 
+## Audit logging and compliance features
+### Immutable audit logs
+- **Write-once store**: audit events are written to an append-only datastore
+  (WORM storage) with retention policies aligned to regulatory needs.
+- **Tamper evidence**: hash-chaining of events and periodic anchor hashes stored
+  in an external evidence vault.
+- **Access controls**: audit logs are read-only to Compliance and Security;
+  no delete or update permissions for operational roles.
+
+### Who/what/when tracking
+- **Who**: actor user ID, role, and authentication context (SSO/MFA, IP).
+- **What**: entity type, entity ID, operation (create/update/approve/revoke).
+- **When**: UTC timestamp with source timezone metadata.
+- **Decision context**: policy decision, approval chain, and reason codes.
+
+### Change history
+- **Version history**: key entities (contracts, access grants, attendance,
+  payments) maintain full version snapshots or delta records.
+- **Diff visibility**: reporting shows before/after for each change with actor.
+- **Reconstruction**: events allow reconstruction of entity state at a point
+  in time for audit sampling.
+
+### Reporting for internal and HQ audit
+- **Internal audit packs**: quarterly access reviews, exception lists, and
+  segregation-of-duties violations.
+- **HQ audit packs**: annual summaries of contracts, spend, compliance holds,
+  and high-risk vendor activity.
+- **Evidence export**: export signed contracts, approvals, and audit events
+  in read-only formats with checksum manifests.
